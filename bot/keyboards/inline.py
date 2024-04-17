@@ -1,9 +1,10 @@
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from loguru import logger
 
 from bot.callback_factory import MenuCallbackData, CurrencyNewsCallbackData, LikeCommentCallbackData, \
-    WriteCommentCallbackData
-from bot.service_async import get_all_news
+    WriteCommentCallbackData, BackCallbackData
+from bot.service_async import get_all_news, get_all_me_news
 from news.models import Like, Comment
 
 
@@ -36,10 +37,11 @@ def get_start_buttons() -> InlineKeyboardMarkup:
     return markup.as_markup()
 
 
-async def get_news_buttons(page: int) -> InlineKeyboardMarkup:
+async def get_news_buttons(
+        page: int,
+        news: list,
+) -> InlineKeyboardMarkup:
     markup = InlineKeyboardBuilder()
-
-    news = await get_all_news()
 
     for novelty in news:
         markup.button(
@@ -103,6 +105,80 @@ def add_comment_buttons(id_news: int):
         callback_data=CurrencyNewsCallbackData(
             id=id_news
         )
+    )
+
+    markup.adjust(1)
+
+    return markup.as_markup()
+
+
+def get_back_button() -> InlineKeyboardMarkup:
+    markup = InlineKeyboardBuilder()
+
+    markup.button(
+        text='Назад',
+        callback_data=BackCallbackData()
+    )
+
+    markup.adjust(1)
+
+    return markup.as_markup()
+
+
+def create_more_news_buttons() -> InlineKeyboardMarkup:
+    markup = InlineKeyboardBuilder()
+
+    markup.button(
+        text='Создать ещё новость',
+        callback_data=MenuCallbackData(
+            create_news=True
+        )
+    )
+
+    markup.button(
+        text='Назад',
+        callback_data=BackCallbackData()
+    )
+
+    markup.adjust(1)
+
+    return markup.as_markup()
+
+
+def refactoring_me_news(id_news: int) -> InlineKeyboardMarkup:
+    markup = InlineKeyboardBuilder()
+
+    markup.button(
+        text='Изменить заголовок',
+        callback_data=MenuCallbackData(
+            create_news=True
+        )
+    )
+
+    markup.button(
+        text='Изменить текст',
+        callback_data=MenuCallbackData(
+            create_news=True
+        )
+    )
+
+    markup.button(
+        text='Изменить всё',
+        callback_data=MenuCallbackData(
+            create_news=True
+        )
+    )
+
+    markup.button(
+        text='Удалить новость',
+        callback_data=MenuCallbackData(
+            create_news=True
+        )
+    )
+
+    markup.button(
+        text='Назад',
+        callback_data=BackCallbackData()
     )
 
     markup.adjust(1)

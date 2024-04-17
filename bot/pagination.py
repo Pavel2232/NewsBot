@@ -6,21 +6,18 @@ from django.conf import settings
 from loguru import logger
 
 from bot.callback_factory import PaginationCallbackData, BackCallbackData, PaginationCommentCallbackData, \
-    CurrencyNewsCallbackData, WriteCommentCallbackData
+    CurrencyNewsCallbackData, WriteCommentCallbackData, RefactoringNewsCallbackData
 from bot.service_async import get_all_comments_by_news
 
 
-
 async def paginate_markup(
-    markup: InlineKeyboardMarkup, page: int = None,
+        markup: InlineKeyboardMarkup,
+        page: int = None,
+        refacto_news: bool = False,
 ) -> InlineKeyboardMarkup:
-    """
-    Universal function for paginating InlineKeyboardMarkup
-    :param markup: InlineKeyboardMarkup to paginate
-    :param page: Current page
-    :return: Paginated InlineKeyboardMarkup
-    """
+
     items_per_page = settings.DEFAULT_PAGINATION_BOT
+
     if not page:
         page = 1
 
@@ -30,17 +27,27 @@ async def paginate_markup(
     end_index = start_index + items_per_page
 
     buttons = markup.inline_keyboard[start_index:end_index]
+    if refacto_news:
+        id_news = 0
+        for list_buttons in buttons:
+            for inline_button in list_buttons:
+                id_news = inline_button.callback_data.split(':')[1]
 
     pagination_buttons = [
-        InlineKeyboardButton(text=f'{page}/{total_pages}', callback_data='ignore')
+        InlineKeyboardButton(
+            text=f'{page}/{total_pages}',
+            callback_data='ignore'
+        )
     ]
 
     if page > 1:
         pagination_buttons.insert(
-            0, InlineKeyboardButton(text='⬅️', callback_data=PaginationCallbackData(
-                page=page-1,
-            ).pack()
-                                    )
+            0, InlineKeyboardButton(
+                text='⬅️',
+                callback_data=PaginationCallbackData(
+                    page=page - 1,
+                ).pack()
+            )
         )
     else:
         pagination_buttons.insert(0, InlineKeyboardButton(text='⬅️', callback_data='ignore'))
@@ -62,21 +69,65 @@ async def paginate_markup(
 
     buttons.append(pagination_buttons)
 
-    buttons.append([InlineKeyboardButton(
-        text="Вернуться в меню",
-        callback_data=BackCallbackData().pack()
-    )
-    ]
-    )
+    if refacto_news:
+        first_row = []
+        two_row = []
 
+
+        first_row.append(
+            InlineKeyboardButton(
+                text='Изменить заголовок',
+                callback_data=RefactoringNewsCallbackData(
+                    id=id_news,
+                    change_title=True
+                ).pack()
+            ))
+
+        first_row.append(
+            InlineKeyboardButton(
+                text='Изменить текст',
+                callback_data=RefactoringNewsCallbackData(
+                    id=id_news,
+                    change_text=True
+                ).pack()
+            )
+        )
+
+        two_row.append(
+            InlineKeyboardButton(
+                text='Удалить новость',
+                callback_data=RefactoringNewsCallbackData(
+                    id=id_news,
+                    delete=True
+                ).pack()
+            )
+        )
+        buttons.append(first_row)
+        buttons.append(two_row)
+
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text='Назад',
+                    callback_data=BackCallbackData().pack()
+                )
+            ]
+        )
+
+    else:
+        buttons.append([InlineKeyboardButton(
+            text="Вернуться в меню",
+            callback_data=BackCallbackData().pack()
+        )
+        ]
+        )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-
 async def paginate_comment(
-    comments: list,
-    id_news: int,
-    page: int = None,
+        comments: list,
+        id_news: int,
+        page: int = None,
 ) -> InlineKeyboardMarkup:
     """
     Universal function for paginating comment
@@ -86,9 +137,6 @@ async def paginate_comment(
     """
     if not page:
         page = 1
-
-
-
 
     total_items = len(comments)
     total_pages = ceil(total_items / 1)
@@ -100,7 +148,7 @@ async def paginate_comment(
     if page > 1:
         pagination_buttons.button(
             text='⬅️', callback_data=PaginationCommentCallbackData(
-                page=page-1,
+                page=page - 1,
                 start_index=start_index,
                 end_index=end_index,
                 id=id_news,
@@ -111,7 +159,6 @@ async def paginate_comment(
             text='⬅️', callback_data='ignore'
         )
 
-
     pagination_buttons.button(
         text=f'{page}/{total_pages}',
         callback_data='ignore'
@@ -119,20 +166,19 @@ async def paginate_comment(
     # Next button
     if page < total_pages:
         pagination_buttons.button(
-                text="➡️",
+            text="➡️",
             callback_data=PaginationCommentCallbackData(
                 id=id_news,
                 page=page + 1,
                 start_index=start_index,
                 end_index=end_index,
             )
-                                 )
+        )
     else:
         pagination_buttons.button(
             text="➡️",
             callback_data="ignore"
         )
-
 
     pagination_buttons.button(
         text=f'Оставить комментарий',

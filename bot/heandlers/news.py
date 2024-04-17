@@ -8,10 +8,11 @@ from aiogram.types import Message, CallbackQuery
 from loguru import logger
 
 from bot.callback_factory import MenuCallbackData, PaginationCallbackData, CurrencyNewsCallbackData, \
-    LikeCommentCallbackData, WriteCommentCallbackData, PaginationCommentCallbackData
-from bot.keyboards.inline import get_start_buttons, get_news_buttons, comment_like_buttons, add_comment_buttons
+    LikeCommentCallbackData, WriteCommentCallbackData, PaginationCommentCallbackData, RefactoringNewsCallbackData
+from bot.keyboards.inline import get_start_buttons, get_news_buttons, comment_like_buttons, add_comment_buttons, \
+    get_back_button, create_more_news_buttons
 from bot.pagination import paginate_markup, paginate_comment
-from bot.service_async import get_all_comments_by_news
+from bot.service_async import get_all_comments_by_news, get_all_news_title, get_all_news, get_all_me_news
 from bot.state_group import UserStart, WorkWithNews
 from news.models import TgUser, News, Like, Comment
 
@@ -24,13 +25,13 @@ async def see_news(
         callback_data: MenuCallbackData,
         state: FSMContext):
     await state.set_state(WorkWithNews.see_news)
-
+    news = await get_all_news()
     await call.message.edit_text(
         textwrap.dedent(
             'Новости'
         ),
         reply_markup=await paginate_markup(
-            markup=await get_news_buttons(callback_data.page),
+            markup=await get_news_buttons(page=callback_data.page, news=news),
             page=callback_data.page
         )
     )
@@ -41,9 +42,10 @@ async def pagination_news(
         call: CallbackQuery,
         callback_data: PaginationCallbackData
 ):
+    news = await get_all_news()
     await call.message.edit_reply_markup(
         reply_markup=await paginate_markup(
-            markup=await get_news_buttons(page=callback_data.page),
+            markup=await get_news_buttons(page=callback_data.page, news=news),
             page=callback_data.page
         )
     )
@@ -209,3 +211,238 @@ async def create_comment_news(
         )
 
         await state.set_state(UserStart.menu)
+
+
+@news_router.callback_query(MenuCallbackData.filter(F.create_news))
+async def create_news(call: CallbackQuery, state: FSMContext):
+    await state.set_state(WorkWithNews.create_news)
+
+    await call.message.edit_text(
+        textwrap.dedent('Введите Заголовок статьи'),
+        reply_markup=get_back_button()
+    )
+
+
+@news_router.message(WorkWithNews.create_news)
+async def get_title_news(message: Message, state: FSMContext):
+    await state.set_state(WorkWithNews.write_text_news)
+
+    if len(message.text) > 60:
+        return await message.answer(
+            textwrap.dedent('Максимальная длинна заголовка 60 символов')
+        )
+
+    news_title = await get_all_news_title()
+
+    if message.text in news_title:
+        return await message.answer(
+            textwrap.dedent(
+                'Статья с таким заголовком уже есть, придумайте новый'
+            )
+        )
+
+    await state.update_data(title_news=message.text)
+
+    await message.answer(
+        textwrap.dedent('Введите текст новости')
+    )
+
+
+@news_router.message(WorkWithNews.write_text_news)
+async def get_text_news_and_create(message: Message, state: FSMContext):
+    await state.set_state(WorkWithNews.success_create_news)
+
+    if len(message.text) > 4095:
+        return await message.answer(
+            textwrap.dedent('Максимальная длинна текста у статьи 4095 символов')
+        )
+    data_state = await state.get_data()
+    user: TgUser = await TgUser.objects.filter(telegram_id=message.from_user.id).afirst()
+    await News.objects.acreate(
+        owner=user,
+        title=data_state.get('title_news'),
+        text=message.text,
+    )
+
+    await message.answer(
+        textwrap.dedent('Новость успешно создана, хотите создать ещё Новость?'),
+        reply_markup=create_more_news_buttons()
+    )
+
+
+@news_router.callback_query(MenuCallbackData.filter(F.refacto_news))
+async def refacto_news(
+        call: CallbackQuery,
+        callback_data: MenuCallbackData,
+        state: FSMContext):
+    await state.set_state(WorkWithNews.refacto_news)
+
+    news = await get_all_me_news(id_user=call.from_user.id)
+
+    await call.message.edit_text(
+        textwrap.dedent(
+            'Мои новости'
+        ),
+        reply_markup=await paginate_markup(
+            markup=await get_news_buttons(
+                callback_data.page,
+                news=news,
+            ),
+            page=callback_data.page,
+            refacto_news=True,
+
+        )
+    )
+
+
+@news_router.callback_query(RefactoringNewsCallbackData.filter(F.change_title))
+async def change_title_news(
+        call: CallbackQuery,
+        callback_data: RefactoringNewsCallbackData,
+        state: FSMContext):
+    await state.set_state(WorkWithNews.refacto_news)
+
+    news = await News.objects.filter(id=callback_data.id).afirst()
+    if news:
+        await state.set_state(WorkWithNews.change_title)
+        await call.message.edit_text(
+            textwrap.dedent(
+                'Введите новый заголовок'
+            ),
+            reply_markup=get_back_button()
+        )
+        await state.update_data(id_news=news.id)
+
+    else:
+        await call.message.edit_text(
+            textwrap.dedent(
+                'Ваша новость была удалена Администратором'
+            ),
+            reply_markup=get_start_buttons()
+        )
+
+
+@news_router.message(WorkWithNews.change_title)
+async def save_new_title_news(
+        message: Message,
+        state: FSMContext
+):
+    data_state = await state.get_data()
+
+    news: News = await News.objects.filter(
+        id=data_state.get('id_news'),
+        owner__telegram_id=message.from_user.id
+    ).afirst()
+
+    logger.info(news)
+
+    if not news:
+        return await message.answer(
+            textwrap.dedent(
+                'Новость либо удалена Администратором, или вы не ее владелец'
+            )
+        )
+
+    if len(message.text) > 60:
+        return await message.answer(
+            textwrap.dedent('Максимальная длинна заголовка 60 символов')
+        )
+
+    news_title = await get_all_news_title()
+
+    if message.text in news_title:
+        return await message.answer(
+            textwrap.dedent(
+                'Статья с таким заголовком уже есть, придумайте новый'
+            )
+        )
+
+    news.title = message.text
+
+    await news.asave()
+    await state.set_state(WorkWithNews.refacto_news)
+    await message.answer(
+        textwrap.dedent('Заголовок успешно обновлен'),
+        reply_markup=get_back_button()
+    )
+
+
+@news_router.callback_query(RefactoringNewsCallbackData.filter(F.change_text))
+async def change_text_news(
+        call: CallbackQuery,
+        callback_data: RefactoringNewsCallbackData,
+        state: FSMContext):
+    await state.set_state(WorkWithNews.refacto_news)
+
+    news = await News.objects.filter(
+        id=callback_data.id,
+        owner__telegram_id=call.from_user.id
+    ).afirst()
+
+    if news:
+        await state.set_state(WorkWithNews.change_text)
+        await call.message.edit_text(
+            textwrap.dedent(
+                'Введите новый текст'
+            ),
+            reply_markup=get_back_button()
+        )
+        await state.update_data(id_news=news.id)
+    else:
+        await call.message.edit_text(
+            textwrap.dedent(
+                'Ваша новость была удалена Администратором'
+            ),
+            reply_markup=get_start_buttons()
+        )
+
+
+@news_router.message(WorkWithNews.change_text)
+async def save_new_text_news(
+        message: Message,
+        state: FSMContext
+):
+    data_state = await state.get_data()
+
+    news: News = await News.objects.filter(
+        id=data_state.get('id_news'),
+        owner__telegram_id=message.from_user.id
+    ).afirst()
+
+    if not news:
+        return await message.answer(
+            textwrap.dedent('Новость либо удалена Администратором, или вы не ее владелец')
+        )
+
+    if len(message.text) > 4095:
+        return await message.answer(
+            textwrap.dedent('Максимальная длинна текста у статьи 4095 символов')
+        )
+
+    news.text = message.text
+
+    await news.asave()
+    await state.set_state(WorkWithNews.refacto_news)
+    await message.answer(
+        textwrap.dedent('Текст успешно обновлен'),
+        reply_markup=get_back_button()
+    )
+
+@news_router.callback_query(RefactoringNewsCallbackData().filter(F.delete))
+async def del_news(
+        call: CallbackQuery,
+        callback_data: RefactoringNewsCallbackData,
+):
+    news: News = await News.objects.filter(
+        id=callback_data.id,
+        owner__telegram_id=call.from_user.id
+    )
+
+    await news.adelete()
+
+    await call.message.answer(
+        textwrap.dedent(
+            'Новость успешно удалена'
+        ),
+        reply_markup=get_start_buttons()
+    )

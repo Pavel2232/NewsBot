@@ -38,3 +38,11 @@ class LikeCommentCallbackData(CallbackData, prefix='reactions'):
 
 class WriteCommentCallbackData(CallbackData, prefix='write_comment'):
     write: bool = True
+
+
+class RefactoringNewsCallbackData(CallbackData, prefix='refactoring_news'):
+    id: int
+    change_title: bool = False
+    change_text: bool = False
+    change_all: bool = False
+    delete: bool = False

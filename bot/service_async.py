@@ -8,6 +8,15 @@ from news.models import News, Comment
 def get_all_news() -> list:
     return list(News.objects.all().order_by('-created_at'))
 
+@sync_to_async
+def get_all_me_news(id_user: int) -> list:
+    return list(News.objects.filter(owner__telegram_id=id_user).order_by('-created_at'))
+
+
+@sync_to_async
+def get_all_news_title() -> list:
+    return list(News.objects.all().values_list('title', flat=True))
+
 
 @sync_to_async
 def get_all_comments_by_news(id_news: int) -> list:
