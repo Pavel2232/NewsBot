@@ -49,7 +49,7 @@ class News(BaseDateTime):
         related_name='news',
     )
 
-    slug = models.CharField(
+    title = models.CharField(
         max_length=60,
         verbose_name='Заголовок статьи',
         unique=True,
@@ -65,7 +65,7 @@ class News(BaseDateTime):
         verbose_name_plural = 'Новости'
 
     def __str__(self):
-        return f'{self.slug}'
+        return f'{self.title}'
 
 
 class Like(BaseDateTime):

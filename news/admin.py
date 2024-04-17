@@ -11,9 +11,9 @@ class TgUserAdmin(admin.ModelAdmin):
 
 @admin.register(News)
 class NewsAdmin(admin.ModelAdmin):
-    list_display = ('slug', 'owner', 'created_at', 'updated_at')
+    list_display = ('title', 'owner', 'created_at', 'updated_at')
     list_filter = ('created_at', 'updated_at')
-    search_fields = ('slug', 'owner__telegram_id')
+    search_fields = ('title', 'owner__telegram_id')
 
 
 @admin.register(Like)

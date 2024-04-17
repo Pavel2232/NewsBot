@@ -10,13 +10,13 @@ class CreateNewsView(CreateAPIView):
     permission_classes = [IsAuthenticated, ]
 
 
-class ListNewsView(CreateAPIView):
-    model = News
+class ListNewsView(ListAPIView):
+    queryset = News.objects.all()
     serializer_class = NewsCreateListSerializers
 
 
 class DestroyNewsView(DestroyAPIView):
-    model = News
+    queryset = News.objects.all()
     serializer_class = NewsCreateListSerializers
 
 
@@ -27,10 +27,10 @@ class CreateCommentsView(CreateAPIView):
 
 
 class ListCommentsView(ListAPIView):
-    model = Comment
+    queryset = Comment.objects.all()
     serializer_class = CommentCreateListSerializers
 
 
-class DestroyCommentsView(CreateAPIView):
-    model = Comment
+class DestroyCommentsView(DestroyAPIView):
+    queryset = Comment.objects.all()
     serializer_class = CommentCreateListSerializers
