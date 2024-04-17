@@ -1,18 +1,26 @@
 import textwrap
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery
-from loguru import logger
-
-from bot.callback_factory import MenuCallbackData, PaginationCallbackData, CurrencyNewsCallbackData, \
-    LikeCommentCallbackData, WriteCommentCallbackData, PaginationCommentCallbackData, RefactoringNewsCallbackData
-from bot.keyboards.inline import get_start_buttons, get_news_buttons, comment_like_buttons, add_comment_buttons, \
-    get_back_button, create_more_news_buttons
+from bot.callback_factory import (MenuCallbackData,
+                                  PaginationCallbackData,
+                                  CurrencyNewsCallbackData,
+                                  LikeCommentCallbackData,
+                                  WriteCommentCallbackData,
+                                  PaginationCommentCallbackData,
+                                  RefactoringNewsCallbackData)
+from bot.keyboards.inline import (get_start_buttons,
+                                  get_news_buttons,
+                                  comment_like_buttons,
+                                  add_comment_buttons,
+                                  get_back_button,
+                                  create_more_news_buttons)
 from bot.pagination import paginate_markup, paginate_comment
-from bot.service_async import get_all_comments_by_news, get_all_news_title, get_all_news, get_all_me_news
+from bot.service_async import (get_all_comments_by_news,
+                               get_all_news_title,
+                               get_all_news,
+                               get_all_me_news)
 from bot.state_group import UserStart, WorkWithNews
 from news.models import TgUser, News, Like, Comment
 
@@ -46,7 +54,8 @@ async def pagination_news(
     await call.message.edit_reply_markup(
         reply_markup=await paginate_markup(
             markup=await get_news_buttons(page=callback_data.page, news=news),
-            page=callback_data.page
+            page=callback_data.page,
+            refacto_news=callback_data.refacto_news
         )
     )
 
@@ -73,7 +82,9 @@ async def like_news(
         callback_data: LikeCommentCallbackData
 ):
     news: News = await News.objects.filter(id=callback_data.id).afirst()
-    user: TgUser = await TgUser.objects.filter(telegram_id=call.from_user.id).afirst()
+    user: TgUser = await TgUser.objects.filter(
+        telegram_id=call.from_user.id
+    ).afirst()
     if news:
         like, created = await Like.objects.aget_or_create(
             owner=user,
@@ -110,7 +121,18 @@ async def comment_news(
 
     if comments:
         comment = comments[0:1]
-        logger.info(comment)
+        is_admin: bool = await TgUser.objects.filter(
+            telegram_id=call.from_user.id
+        ).only(
+            'is_admin'
+        ).afirst()
+        if await News.objects.filter(
+                id=callback_data.id,
+                owner__telegram_id=call.from_user.id
+        ).aexists() or is_admin:
+            id_comment = comment[0].id
+        else:
+            id_comment = None
         await call.message.edit_text(
             text=textwrap.dedent(
                 f'''
@@ -122,6 +144,7 @@ async def comment_news(
             reply_markup=await paginate_comment(
                 comments=comments,
                 id_news=callback_data.id,
+                id_comment=id_comment
             )
         )
     else:
@@ -142,11 +165,25 @@ async def comment_news_pagination(
     comments = await get_all_comments_by_news(id_news=callback_data.id)
 
     await state.update_data(id_news=callback_data.id)
-    logger.info(callback_data)
 
     if comments:
 
-        comment = comments[callback_data.start_index + 1:callback_data.end_index + 1]
+        comment = comments[callback_data.start_index:callback_data.end_index]
+
+        is_admin: bool = await TgUser.objects.filter(
+            telegram_id=call.from_user.id
+        ).only(
+            'is_admin'
+        ).afirst()
+
+        if News.objects.filter(
+                id=callback_data.id,
+                owner__telegram_id=call.from_user.id
+        ).aexists() or is_admin:
+            id_comment = comment[0].id
+        else:
+            id_comment = None
+
         try:
             await call.message.edit_text(
                 text=textwrap.dedent(
@@ -159,7 +196,8 @@ async def comment_news_pagination(
                 reply_markup=await paginate_comment(
                     comments=comments,
                     id_news=callback_data.id,
-                    page=callback_data.page
+                    page=callback_data.page,
+                    id_comment=id_comment
                 )
             )
         except TelegramBadRequest:
@@ -185,8 +223,14 @@ async def create_comment_news(
 ):
     data_state = await state.get_data()
     text_comment = message.text
-    owner: TgUser = await TgUser.objects.filter(telegram_id=message.from_user.id).afirst()
-    news: News = await News.objects.filter(id=data_state.get('id_news')).afirst()
+    owner: TgUser = await TgUser.objects.filter(
+        telegram_id=message.from_user.id
+    ).afirst()
+    news: News = await News.objects.filter(
+        id=data_state.get(
+            'id_news'
+        )
+    ).afirst()
 
     if news:
         comment = await Comment.objects.acreate(
@@ -254,10 +298,14 @@ async def get_text_news_and_create(message: Message, state: FSMContext):
 
     if len(message.text) > 4095:
         return await message.answer(
-            textwrap.dedent('Максимальная длинна текста у статьи 4095 символов')
+            textwrap.dedent(
+                'Максимальная длинна текста у статьи 4095 символов'
+            )
         )
     data_state = await state.get_data()
-    user: TgUser = await TgUser.objects.filter(telegram_id=message.from_user.id).afirst()
+    user: TgUser = await TgUser.objects.filter(
+        telegram_id=message.from_user.id
+    ).afirst()
     await News.objects.acreate(
         owner=user,
         title=data_state.get('title_news'),
@@ -265,7 +313,9 @@ async def get_text_news_and_create(message: Message, state: FSMContext):
     )
 
     await message.answer(
-        textwrap.dedent('Новость успешно создана, хотите создать ещё Новость?'),
+        textwrap.dedent(
+            'Новость успешно создана, хотите создать ещё Новость?'
+        ),
         reply_markup=create_more_news_buttons()
     )
 
@@ -277,7 +327,13 @@ async def refacto_news(
         state: FSMContext):
     await state.set_state(WorkWithNews.refacto_news)
 
-    news = await get_all_me_news(id_user=call.from_user.id)
+    is_admin: bool = await TgUser.objects.filter(
+        telegram_id=call.from_user.id
+    ).only(
+        'is_admin'
+    ).afirst()
+
+    news = await get_all_me_news(id_user=call.from_user.id, is_admin=is_admin)
 
     await call.message.edit_text(
         textwrap.dedent(
@@ -331,10 +387,7 @@ async def save_new_title_news(
 
     news: News = await News.objects.filter(
         id=data_state.get('id_news'),
-        owner__telegram_id=message.from_user.id
     ).afirst()
-
-    logger.info(news)
 
     if not news:
         return await message.answer(
@@ -376,7 +429,6 @@ async def change_text_news(
 
     news = await News.objects.filter(
         id=callback_data.id,
-        owner__telegram_id=call.from_user.id
     ).afirst()
 
     if news:
@@ -406,17 +458,20 @@ async def save_new_text_news(
 
     news: News = await News.objects.filter(
         id=data_state.get('id_news'),
-        owner__telegram_id=message.from_user.id
     ).afirst()
 
     if not news:
         return await message.answer(
-            textwrap.dedent('Новость либо удалена Администратором, или вы не ее владелец')
+            textwrap.dedent(
+                'Новость либо удалена Администратором, или вы не ее владелец'
+            )
         )
 
     if len(message.text) > 4095:
         return await message.answer(
-            textwrap.dedent('Максимальная длинна текста у статьи 4095 символов')
+            textwrap.dedent(
+                'Максимальная длинна текста у статьи 4095 символов'
+            )
         )
 
     news.text = message.text
@@ -428,15 +483,15 @@ async def save_new_text_news(
         reply_markup=get_back_button()
     )
 
-@news_router.callback_query(RefactoringNewsCallbackData().filter(F.delete))
+
+@news_router.callback_query(RefactoringNewsCallbackData.filter(F.delete))
 async def del_news(
         call: CallbackQuery,
         callback_data: RefactoringNewsCallbackData,
 ):
     news: News = await News.objects.filter(
         id=callback_data.id,
-        owner__telegram_id=call.from_user.id
-    )
+    ).afirst()
 
     await news.adelete()
 
@@ -445,4 +500,25 @@ async def del_news(
             'Новость успешно удалена'
         ),
         reply_markup=get_start_buttons()
+    )
+
+
+@news_router.callback_query(
+    RefactoringNewsCallbackData.filter(
+        F.delete_comment
+    )
+)
+async def refacto_comment_news(
+        call: CallbackQuery,
+        callback_data: RefactoringNewsCallbackData,
+):
+    comment: Comment = await Comment.objects.filter(
+        id=callback_data.id
+    ).afirst()
+
+    await comment.adelete()
+
+    await call.message.edit_text(
+        textwrap.dedent('Комментарий удален'),
+        reply_markup=get_back_button()
     )

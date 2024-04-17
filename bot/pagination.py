@@ -1,13 +1,14 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from math import ceil
-
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from django.conf import settings
 from loguru import logger
-
-from bot.callback_factory import PaginationCallbackData, BackCallbackData, PaginationCommentCallbackData, \
-    CurrencyNewsCallbackData, WriteCommentCallbackData, RefactoringNewsCallbackData
-from bot.service_async import get_all_comments_by_news
+from bot.callback_factory import (PaginationCallbackData,
+                                  BackCallbackData,
+                                  PaginationCommentCallbackData,
+                                  CurrencyNewsCallbackData,
+                                  WriteCommentCallbackData,
+                                  RefactoringNewsCallbackData)
 
 
 async def paginate_markup(
@@ -15,8 +16,10 @@ async def paginate_markup(
         page: int = None,
         refacto_news: bool = False,
 ) -> InlineKeyboardMarkup:
-
-    items_per_page = settings.DEFAULT_PAGINATION_BOT
+    if refacto_news:
+        items_per_page = 1
+    else:
+        items_per_page = settings.DEFAULT_PAGINATION_BOT
 
     if not page:
         page = 1
@@ -45,19 +48,26 @@ async def paginate_markup(
             0, InlineKeyboardButton(
                 text='⬅️',
                 callback_data=PaginationCallbackData(
+                    refacto_news=refacto_news,
                     page=page - 1,
                 ).pack()
             )
         )
     else:
-        pagination_buttons.insert(0, InlineKeyboardButton(text='⬅️', callback_data='ignore'))
+        pagination_buttons.insert(0, InlineKeyboardButton(
+            text='⬅️',
+            callback_data='ignore'
+        )
+                                  )
 
     # Next button
     if page < total_pages:
         pagination_buttons.append(
-            InlineKeyboardButton(text="➡️", callback_data=PaginationCallbackData(
-                page=page + 1,
-            ).pack()
+            InlineKeyboardButton(text="➡️",
+                                 callback_data=PaginationCallbackData(
+                                     page=page + 1,
+                                     refacto_news=refacto_news,
+                                 ).pack()
                                  )
         )
     else:
@@ -73,13 +83,12 @@ async def paginate_markup(
         first_row = []
         two_row = []
 
-
         first_row.append(
             InlineKeyboardButton(
                 text='Изменить заголовок',
                 callback_data=RefactoringNewsCallbackData(
                     id=id_news,
-                    change_title=True
+                    change_title=True,
                 ).pack()
             ))
 
@@ -102,8 +111,21 @@ async def paginate_markup(
                 ).pack()
             )
         )
+
         buttons.append(first_row)
         buttons.append(two_row)
+
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text='Редактировать комментарии',
+                    callback_data=RefactoringNewsCallbackData(
+                        id=id_news,
+                        delete_comment=True,
+                    ).pack()
+                )
+            ]
+        )
 
         buttons.append(
             [
@@ -128,13 +150,8 @@ async def paginate_comment(
         comments: list,
         id_news: int,
         page: int = None,
+        id_comment: int = None,
 ) -> InlineKeyboardMarkup:
-    """
-    Universal function for paginating comment
-    :param id_news: News pk
-    :param page: Current page
-    :return: Paginated comment
-    """
     if not page:
         page = 1
 
@@ -181,9 +198,18 @@ async def paginate_comment(
         )
 
     pagination_buttons.button(
-        text=f'Оставить комментарий',
+        text='Оставить комментарий',
         callback_data=WriteCommentCallbackData()
     )
+
+    if id_comment:
+        pagination_buttons.button(
+            text='Удалить комментарий',
+            callback_data=RefactoringNewsCallbackData(
+                id=id_comment,
+                delete_comment=True
+            )
+        )
 
     pagination_buttons.button(
         text="Вернуться к новости",

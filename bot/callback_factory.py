@@ -15,7 +15,7 @@ class CurrencyNewsCallbackData(CallbackData, prefix='news'):
 
 class PaginationCallbackData(CallbackData, prefix='pagination'):
     page: int
-
+    refacto_news: bool = False
 
 
 class PaginationCommentCallbackData(CallbackData, prefix='pagination_comment'):
@@ -46,3 +46,5 @@ class RefactoringNewsCallbackData(CallbackData, prefix='refactoring_news'):
     change_text: bool = False
     change_all: bool = False
     delete: bool = False
+    delete_comment: bool = False
+    refacto_news: bool = False

@@ -1,11 +1,8 @@
 import textwrap
-from aiogram import Router, F
+from aiogram import Router
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery
-from loguru import logger
-
 from bot.callback_factory import BackCallbackData
 from bot.keyboards.inline import get_start_buttons
 from bot.state_group import UserStart
@@ -31,11 +28,14 @@ async def start(message: Message, state: FSMContext):
             '''
 Добро пожаловать!
 
-Я - ваш личный бот с новостями. Я буду держать вас в курсе последних событий и интересных статей.
+Я - ваш личный бот с новостями.
+Я буду держать вас в курсе последних событий и интересных статей.
 
-Чтобы начать, просто напишите мне "новости" или "статьи", и я пришлю вам список последних новостей.
+Чтобы начать, просто напишите мне "новости" или "статьи",
+и я пришлю вам список последних новостей.
 
-Если у вас есть вопросы или пожелания, не стесняйтесь задавать их мне!
+Если у вас есть вопросы или пожелания,
+не стесняйтесь задавать их мне!
 
 Желаю приятного чтения!
 
@@ -58,7 +58,7 @@ async def back_to_menu(call: CallbackQuery, state: FSMContext):
     )
 
 
-@start_router.callback_query(Command('menu'))
+@start_router.message(Command('menu'))
 async def get_menu(message: Message, state: FSMContext):
     await state.set_state(UserStart.menu)
     await message.answer(
