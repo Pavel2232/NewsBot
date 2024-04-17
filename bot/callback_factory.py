@@ -17,6 +17,14 @@ class PaginationCallbackData(CallbackData, prefix='pagination'):
     page: int
 
 
+
+class PaginationCommentCallbackData(CallbackData, prefix='pagination_comment'):
+    id: int
+    page: int
+    start_index: int = 0
+    end_index: int = 1
+
+
 class BackCallbackData(CallbackData, prefix='back'):
     back: bool = True
 
@@ -25,3 +33,8 @@ class LikeCommentCallbackData(CallbackData, prefix='reactions'):
     id: int
     like: bool = False
     comment: bool = False
+    page: int = 1
+
+
+class WriteCommentCallbackData(CallbackData, prefix='write_comment'):
+    write: bool = True

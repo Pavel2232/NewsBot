@@ -8,3 +8,5 @@ class UserStart(StatesGroup):
 
 class WorkWithNews(StatesGroup):
     see_news = State()
+    see_comment = State()
+    write_comment = State()

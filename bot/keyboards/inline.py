@@ -1,8 +1,10 @@
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.callback_factory import MenuCallbackData, CurrencyNewsCallbackData, LikeCommentCallbackData
+from bot.callback_factory import MenuCallbackData, CurrencyNewsCallbackData, LikeCommentCallbackData, \
+    WriteCommentCallbackData
 from bot.service_async import get_all_news
+from news.models import Like, Comment
 
 
 def get_start_buttons() -> InlineKeyboardMarkup:
@@ -53,22 +55,25 @@ async def get_news_buttons(page: int) -> InlineKeyboardMarkup:
     return markup.as_markup()
 
 
-def comment_like_buttons(id_news: int, page: int = 0) -> InlineKeyboardMarkup:
+async def comment_like_buttons(id_news: int, page: int = 0) -> InlineKeyboardMarkup:
     markup = InlineKeyboardBuilder()
-
+    like_count: Like = await Like.objects.filter(news_id=id_news, like=True).acount()
+    comment_count: Comment = await Comment.objects.filter(news_id=id_news).acount()
     markup.button(
-        text='❤️',
+        text=f'{like_count if like_count else ''}❤️',
         callback_data=LikeCommentCallbackData(
             id=id_news,
-            like=True
+            like=True,
+            page=page
         )
     )
 
     markup.button(
-        text='💬',
+        text=f'{comment_count if comment_count else ''}💬',
         callback_data=LikeCommentCallbackData(
             id=id_news,
-            comment=True
+            comment=True,
+            page=page
         )
     )
 
@@ -81,5 +86,25 @@ def comment_like_buttons(id_news: int, page: int = 0) -> InlineKeyboardMarkup:
     )
 
     markup.adjust(2)
+
+    return markup.as_markup()
+
+
+def add_comment_buttons(id_news: int):
+    markup = InlineKeyboardBuilder()
+
+    markup.button(
+        text=f'Оставить комментарий',
+        callback_data=WriteCommentCallbackData()
+    )
+
+    markup.button(
+        text='Назад',
+        callback_data=CurrencyNewsCallbackData(
+            id=id_news
+        )
+    )
+
+    markup.adjust(1)
 
     return markup.as_markup()

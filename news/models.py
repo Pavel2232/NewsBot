@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 
 
 class BaseDateTime(models.Model):
@@ -91,9 +92,16 @@ class Like(BaseDateTime):
     class Meta:
         verbose_name = 'Лайк'
         verbose_name_plural = 'Лайки'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'news'],
+                condition=Q(like=True),
+                name='unique_like'
+            )
+        ]
 
     def __str__(self):
-        return f'{self.owner.telegram_id} {self.news.slug}'
+        return f'{self.owner.telegram_id} {self.news.title}'
 
 
 class Comment(BaseDateTime):
@@ -121,4 +129,4 @@ class Comment(BaseDateTime):
         verbose_name_plural = 'Комментарии'
 
     def __str__(self):
-        return f'{self.owner.telegram_id} - {self.news.slug}'
+        return f'{self.text}'
