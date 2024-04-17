@@ -21,6 +21,8 @@ REDIS_URL = env('REDIS_URL')
 
 DEBUG = env.bool('DEBUG')
 
+DEFAULT_PAGINATION_BOT = 5
+
 ALLOWED_HOSTS = env.list(
     'ALLOWED_HOSTS',
     default=[
